@@ -1,0 +1,109 @@
+---
+title: 'Homework 2'
+author: "Juan Belardinelli"
+date: "2023-09-27"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Section 1
+### Description of data
+
+This dataset contains RNA sequencing results comparing expression of all 4871 genes between *Mycobacterium abscessus* wild type (*Mabs* WT) and a strain with a deletion in *dosRS* genes (*Mabs dosRS* KO) grown under hypoxic conditions.I want to see which genes are under control of the DosR transcriptional factor so the genes with the highest and lowest logFC values are likely to be under control of this regulator. 
+It is saved as an excel file, which is normally viewed in Excel.
+
+## Section 2
+### Reading data into R
+
+The data was read using read_excel from the readxl package. I created an object called data_RNA. I also renamed some of the columns.
+
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+
+data_RNA <- read_excel("data/WT vs dosR _ 02042020.xlsx")
+
+data_RNA <- data_RNA %>% 
+  rename(gene = gene_id, 
+         log2fc = logFC,
+         padj = FDR) 
+```
+
+## Section 3
+### Characteristics of the data
+
+The dataframe has `r nrow(data_RNA)` rows and `r ncol(data_RNA)` columns. Each row corresponds to a gene from *M. abscessus*. The table contains the gene number, differential expression values (expressed as logFC), the average abundance (logCPM), the statistical significance of the differential expression (FDR), the function of the coded protein (description). 
+```{r}
+description <- tibble(colnames(data_RNA), c("Fold change in expression", "Average abundance of transcript", "I have no idea", "p value", "Adjusted p value", "Gene number", "Gene common name", "Possible function")) %>% rename(Column_names = 1, Description = 2)
+library(knitr)
+kable(description)
+```
+Note: I didn't add a units column because these values don't have units.
+
+## Section 4
+### Summary statistics
+
+```{r}
+summary_rna <- summarise(data_RNA,
+                     min(log2fc), max(log2fc), mean(log2fc),
+                     min(logCPM), max(logCPM), mean(logCPM),
+                     min(padj), max(padj), mean(padj))
+flipped <- t(summary_rna)
+kable(flipped)
+```
+Note: I flipped the table because it didn't fit.
+
+## Section 5
+### Visualizing the data
+
+I am interested in knowing how many genes are downregulated and how many upregulated when comparing both strains. I set a cut-off value of |2| for the log2fc and also filter for those that are statistically significant (pajd < 0.05). Then I make a bar chart to show the number of genes.
+```{r, fig.width=4}
+# This is to obtain only differentially expressed (DE) genes
+# that are statistically significant (padj<0.05) and have a 
+# log2 Fold Change of at least > |2|
+DE_genes <- data_RNA %>% filter(padj <= 0.05) %>%
+  filter(log2fc >= 2 | log2fc <= -2) %>% 
+  select(log2fc, gene, padj, logCPM) %>% 
+  arrange(log2fc)
+
+my_title <- expression(paste(italic("Mabs"), "WT vs ", italic("Mabs dosRS"), "KO"))
+
+DE_genes %>% mutate(Expression = if_else(log2fc <= -2,"Downregulated", "Upregulated")) %>% 
+  group_by(Expression) %>% 
+  ggplot() +
+  geom_bar(aes(x = Expression, fill = Expression)) +
+  labs(x = "", y = "Number of genes differentially expressed
+       (log2FC > 2 or < -2)") +
+  ggtitle(my_title) +
+  coord_flip() +
+  theme_few()
+```
+
+In this plot I graph the expression values for all genes and color according to those that are statistically significant. This graph has a high data density since I mapped all genes, has references for the cut-off value of the expression at -2 and 2 (I adapted the y-axis to better show this) and highlights interesting aspects of the data (top 5 downregulated genes).
+```{r, fig.width=6}
+library(ggrepel)
+top_5 <- DE_genes %>% 
+  slice(1:5)
+
+data_RNA <- data_RNA %>% mutate(padj = padj < 0.05)
+
+data_RNA <- data_RNA %>%  mutate(padj = factor(padj, levels = c(TRUE, FALSE),
+                      labels = c("p < 0.05", "p > 0.05")))
+
+ggplot(data_RNA) +
+  geom_point(aes(x = logCPM, y = log2fc, color = padj), alpha = 0.5) +
+  geom_hline(yintercept = 2, linetype = "dashed") +
+  geom_hline(yintercept = -2, linetype = "dashed") +
+  geom_text_repel(data = top_5, aes(x = logCPM, y = log2fc,label = gene)
+                  , size = 2.5) +
+  labs(x = "Average abundance", y = "log2 Fold Change") +
+  scale_y_continuous(breaks = seq(-16, 6, by = 2)) +
+  theme_tufte()
+```
+
+
