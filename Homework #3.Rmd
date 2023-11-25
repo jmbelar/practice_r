@@ -46,7 +46,7 @@ DE_genes %>% mutate(Expression = if_else(log2fc <= -2,"Downregulated", "Upregula
 
 ```
 
-This graph summarizes those genes that are differentially expressed (DE genes) between the two strains. It follows some of the guidelines for good graphics, for example, it has clean, meaningful labels and highlights interesting aspects of the data (the number of DE genes up and downregulated). However, this is a very low data density graph and there is no ordering of the genes so I decided to change this graph completely (see below).
+This graph summarizes those genes that are differentially expressed (DE genes) between the two strains. It follows some of the guidelines for good graphics, for example, it has clean, meaningful labels and highlights interesting aspects of the data (the number of DE genes up and downregulated). However, this is a very low data density graph and there is no ordering of the genes so I decided to change this graph completely (see below). What a great graph!!
 
 ```{r improved graph, fig.width=7, fig.height=6}
 library(forcats)
