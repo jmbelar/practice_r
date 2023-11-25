@@ -65,7 +65,7 @@ a <- ggplot(upregulated) +
   theme(axis.text = element_text(size = 5)) 
 
 b <- ggplot(downregulated) +
-  geom_point(aes(x = log2fc, y = gene, color = logCPM)) + 
+  geom_point(aes(x = log2fc, y = gene)) + 
   ggtitle("Downregulated genes") +
   labs(x = "Expression (log2FC)", y = "Gene number") +
   theme(axis.text = element_text(size = 5))
