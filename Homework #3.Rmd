@@ -1,0 +1,185 @@
+---
+title: 'Homework #3'
+author: "Juan Belardinelli"
+date: "2023-10-18"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, error = FALSE)
+```
+
+# Exercise 2
+
+This is the graph from the previous homework:
+```{r, fig.width=6}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+
+data_RNA <- read_excel("data/WT vs dosR _ 02042020.xlsx")
+
+data_RNA <- data_RNA %>% 
+  rename(gene = gene_id, 
+         log2fc = logFC,
+         padj = FDR) 
+
+# This is to obtain only differentially expressed (DE) genes
+# that are statistically significant (padj<0.05) and have a 
+# log2 Fold Change of at least > |2|
+DE_genes <- data_RNA %>% filter(padj <= 0.05) %>%
+  filter(log2fc >= 2 | log2fc <= -2) %>% 
+  select(log2fc, gene, padj, logCPM) %>% 
+  arrange(log2fc)
+
+my_title <- expression(paste(italic("Mabs"), "WT vs ", italic("Mabs dosRS"), "KO"))
+
+DE_genes %>% mutate(Expression = if_else(log2fc <= -2,"Downregulated", "Upregulated")) %>% 
+  group_by(Expression) %>% 
+  ggplot() +
+  geom_bar(aes(x = Expression, fill = Expression)) +
+  labs(x = "", y = "Number of genes differentially expressed
+       (log2FC > 2 or < -2)") +
+  ggtitle(my_title) +
+  theme_few()
+
+```
+
+This graph summarizes those genes that are differentially expressed (DE genes) between the two strains. It follows some of the guidelines for good graphics, for example, it has clean, meaningful labels and highlights interesting aspects of the data (the number of DE genes up and downregulated). However, this is a very low data density graph and there is no ordering of the genes so I decided to change this graph completely (see below).
+
+```{r improved graph, fig.width=7, fig.height=6}
+library(forcats)
+library(gridExtra)
+
+upregulated <- filter(DE_genes, log2fc >= 2) %>%
+  mutate(gene = fct_reorder(gene, log2fc))
+
+downregulated <- filter(DE_genes, log2fc <= 2) %>%
+  mutate(gene = fct_reorder(gene, log2fc, .desc = T))
+ 
+a <- ggplot(upregulated) +
+  geom_point(aes(x = log2fc, y = gene, color = logCPM)) + 
+  ggtitle("Upregulated genes") +
+  labs(x = "Expression (log2FC)", y = "Gene number") +
+  theme(axis.text = element_text(size = 5)) 
+
+b <- ggplot(downregulated) +
+  geom_point(aes(x = log2fc, y = gene, color = logCPM)) + 
+  ggtitle("Downregulated genes") +
+  labs(x = "Expression (log2FC)", y = "Gene number") +
+  theme(axis.text = element_text(size = 5))
+
+grid.arrange(a, b, ncol = 2, top = "Differentially expressed genes
+       (log2FC > 2 or < -2)")
+```
+
+This new graph: 
+
+1. has higher data density since it doesn't only shows the number of genes that are differentially expressed but also you can tell which genes are differentially expressed and to which extent.
+2. makes the order of the genes meaningful, from the most up (or down) regulated to the least. 
+3. provides useful references since you can look at the abundance of the transcripts (logCPM) by looking at the color.
+4. although I believe these are not exactly small multiples, the separation of the up and downregulated genes in two plots makes it tidier.
+
+# Exercise 3
+
+```{r titanic}
+library(titanic)
+library(tidyverse)
+library(forcats)
+library(knitr)
+
+# Load dataset and create an object (age_survival) with the columns Survived and Age and rename columns of Survived
+data("titanic_train")
+
+age_survival <- titanic_train %>% select(Survived, Age) %>% 
+  mutate(Survived = ifelse(Survived == 0, "Dead", "Survived")) %>% 
+  group_by(Survived) %>% 
+  arrange(desc(Age))
+
+# This prints 10 rows (the oldest five people who survived and who died)
+slice(age_survival, 1:5) %>% kable()
+
+```
+
+```{r titanic_plot}
+# This creates a histogram with the required organization
+ggplot(age_survival, aes(x = Age)) +
+  geom_histogram(fill = "red", color = "black") +
+  facet_wrap(~Survived, ncol = 1) +
+  labs(x = "Age (years)",y = "Number of passengers") +
+  ggtitle("Age distribution of Titanic passengers")
+```
+```{r mean_age}
+# this determines the mean age for each group after filtering out the missing values
+mean_age <- age_survival %>% filter(!is.na(Age)) %>% 
+  summarise(mean_age = mean(Age))
+
+# this counts how many people survived and how many died
+number_survived <- count(age_survival, Survived)
+
+# this counts how many passengers had missing data
+number_na <- age_survival %>% filter(is.na(Age)) %>% 
+  count()
+
+# this creates a dataframe with all the information together and adds column titles
+df <- full_join(mean_age, number_survived, by = "Survived") %>% 
+  full_join(number_na, by = "Survived")
+colnames(df) <- c("","Age mean",
+                   "Total number of people",
+                   "Missing age data")
+kable(df)
+```
+
+
+```{r t-test}
+library(broom)
+# this runs a t.test to check whether there is a difference in the mean of the two groups
+ 
+tidy(t.test(Age ~ Survived, data = age_survival))
+```
+
+# Exercise 4
+
+```{r exercise 4}
+library(tidyverse)
+library(readr)
+library(stringr)
+library(dplyr)
+
+# this reads the data from all dictionary words and put into an object call words. I add a column name
+words <- read.delim("data/words_alpha.txt") 
+colnames(words) <- "word"
+
+# here I created a new column with the number of characters for each word and filter for the ones that have 8 characters. I save as a new object called words_char
+words_char <- words %>% mutate("letters" = nchar(word)) %>% 
+  filter(letters == 8)
+
+# this selects for those words that start with m and saves into a new object m.
+m <- str_subset(words_char$word, pattern = "^m[a-z]") 
+
+# once I have this new object with all 8 letter words that begin with m I split the word in 3 parts (the first 4 letters, the following 3 and the last letter)
+first_word <- substr(m, 1, 4) 
+second_word <- substr(m, 5, 7)
+last_letter <- substr(m, 8, 8)
+
+# now I paste the last letter at the beginning of the "3 letters".
+new_last_word <- paste0(last_letter, second_word)
+
+# finally, the two word phrase is made, I put in a dataframe the first and second word of the phrase in an object called phrase and change the column names to reflect this. 
+phrase <- tibble(c(first_word), c(new_last_word)) 
+colnames(phrase) <- c("word", "second word")
+
+#I have 2478 possible phrases but most of them don't contain real words so in the next steps I filtered bothe coulmns by words that are actually in the original dictionary
+phrase <- inner_join(phrase, words, by = "word")
+
+phrase <- phrase %>% filter(`second word` %in% words$word)
+
+# Finally, I have a dataframe with 300 possible answers. 
+print(phrase)
+```
+
+There are 300 possible combinations but most of them don't make much sense. A few of them could be:
+
+1. must each to mustache
+2. mass rage to massager
